@@ -11,14 +11,14 @@ var ObjectId = require('mongodb').ObjectId;
 var MongoStore = require('connect-mongo');
 var mongoose = require('mongoose');
 var nodemailer= require('nodemailer');
-var url = "mongodb://127.0.0.1:27017/mydb";
+var url = "mongodb://127.0.0.1:27017/projectdb";
 var timestamp = require('timestamp');
 
 var dbCon;
 MongoClient.connect(url, function(err, db) {
     if (err) throw err;
     console.log("Database created!");
-    dbCon=db.db("mydb");
+    dbCon=db.db("projectdb");
   });
 
 
@@ -41,7 +41,7 @@ app.use(
     host: '127.0.0.1', 
     port: '27017', 
     collectionName: 'sessions', 
-    mongoUrl: 'mongodb://127.0.0.1:27017/mydb'    
+    mongoUrl: 'mongodb://127.0.0.1:27017/projectdb'    
   })
 }))
 const myLogger = function (req, res, next) {
@@ -56,7 +56,10 @@ var usersRouter = require('./routes/users');
 var logRouter=require('./routes/log');
 var registerRouter =require('./routes/register');
 const { ObjectID } = require('bson');
-
+const multer =require('multer');
+const aws= require('aws-sdk');
+const jwt= require('jsonwebtoken');
+const bcrypt =require('bcrypt');
 
 
 // view engine setup
@@ -521,13 +524,27 @@ app.get('/cout', (req, res) => {
 
 app.post('/validate', (req, res) => {
    
-        dbCon.collection("users").findOne({"uid":req.body.username,"upd":req.body.password}, function(err, response) {
+        dbCon.collection("users").findOne({"uid":req.body.username}, function(err, response) {
                 if (err) throw err;
                 if(response){
-                req.session.auth = true; 
-                un=req.body.username;
-                req.session.username=req.body.username;
-                res.redirect("/")}
+                    async function auth(){
+                        const auth=await bcrypt.compare(req.body.password,response.upd);
+                        if(auth){
+                            req.session.auth = true; 
+                            un=req.body.username;
+                            req.session.username=req.body.username;
+                            jwt.sign({response}, 'secretkey', (err, token) => {
+                                res.cookie("jwt",token,{
+                                  })
+                                res.redirect('/');
+                                
+                              });
+                        }
+                        else{
+                            res.redirect("/reg"); 
+                        }
+                    }auth();
+                }
                 else{
                     res.redirect("/reg");
                 }
